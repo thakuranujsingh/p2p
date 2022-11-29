@@ -40,10 +40,12 @@ message GetBlockchainResponse {
 message BroadcastRequest {
     string transactionHash = 1;
     int32 count = 2;
+    bool fileSaved = 3;
 }
 
 message BroadcastResponse {
     string nodeAddr = 1;
     string transactionHash = 2;
     int32 count = 3;
+    bool fileSaved = 4;
 }

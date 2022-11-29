@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"p2p/proto"
 	"p2p/server/blockchain"
 	"sync"
@@ -47,8 +48,11 @@ type Server struct {
 	port       string
 }
 
+var isFileSaved = false
+
 func (s *Server) AddBlock(ctx context.Context, in *proto.AddBlockRequest) (*proto.AddBlockResponse, error) {
 	block := s.Blockchain.AddBlock(in.GetData())
+	isFileSaved = false
 	s.BroadCast(ctx, &proto.BroadcastRequest{
 		TransactionHash: block.Hash,
 		Count:           0,
@@ -73,13 +77,30 @@ func (s *Server) GetBlockchain(ctx context.Context, in *proto.GetBlockchainReque
 
 func (s *Server) BroadCast(ctx context.Context, in *proto.BroadcastRequest) (*proto.BroadcastResponse, error) {
 	addr := s.port
+	count := in.Count
+
+	if count > 1 {
+		if !isFileSaved {
+			wg.Add(1)
+			isFileSaved = true
+			go saveFile(addr, in.TransactionHash)
+		}
+
+		return &proto.BroadcastResponse{
+			NodeAddr:        addr,
+			TransactionHash: in.TransactionHash,
+			Count:           in.Count,
+		}, nil
+	}
+
 	fmt.Printf("broadcasting server: %v\n", addr)
 	for _, port := range ports {
-		if port != addr && in.Count < 3 {
+		if port != addr {
 			wg.Add(1)
 			go broadCastNode(port, in.TransactionHash, in.Count+1)
 		}
 	}
+
 	return &proto.BroadcastResponse{
 		NodeAddr:        addr,
 		TransactionHash: in.TransactionHash,
@@ -109,4 +130,22 @@ func broadCastNode(port string, transactionHash string, count int32) {
 	fmt.Printf("nodeaddr: %v, transactionHash: %v, count: %v\n", r.NodeAddr, r.TransactionHash, r.Count)
 
 	wg.Wait()
+}
+
+func saveFile(port string, hash string) {
+	defer wg.Done()
+	// If the file doesn't exist, create it, or append to the file
+	f, err := os.OpenFile(port+".txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if _, err := f.Write([]byte(fmt.Sprintf("Transaction hash: %v\n", hash))); err != nil {
+		f.Close() // ignore error; Write error takes precedence
+		log.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		log.Fatal(err)
+	}
+	time.Sleep(1 * time.Second)
+	isFileSaved = false
 }

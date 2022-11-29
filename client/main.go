@@ -61,6 +61,7 @@ func listBlock(ctx context.Context) {
 	}
 	log.Println("Blocks:")
 	for _, b := range list.Blocks {
+
 		log.Printf("hash: %s, prev block hash: %s, data: %s\n", b.Hash, b.PrevBlockHash, b.Data)
 	}
 
