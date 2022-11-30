@@ -19,6 +19,8 @@ import (
 var ports = []string{"8080", "8081", "8082", "8083"}
 var wg = sync.WaitGroup{}
 
+var transactionData = make(map[string]int)
+
 func main() {
 
 	port := flag.String("port", "8080", "server port")
@@ -77,9 +79,10 @@ func (s *Server) GetBlockchain(ctx context.Context, in *proto.GetBlockchainReque
 
 func (s *Server) BroadCast(ctx context.Context, in *proto.BroadcastRequest) (*proto.BroadcastResponse, error) {
 	addr := s.port
-	count := in.Count
 
-	if count > 1 {
+	transactionData[in.TransactionHash] += 1
+
+	if transactionData[in.TransactionHash] > 2 {
 		if !isFileSaved {
 			wg.Add(1)
 			isFileSaved = true
@@ -122,7 +125,6 @@ func broadCastNode(port string, transactionHash string, count int32) {
 
 	client := proto.NewBlockchainClient(conn)
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-
 	r, err := client.BroadCast(ctx, &proto.BroadcastRequest{TransactionHash: transactionHash, Count: count})
 	if err != nil {
 		log.Fatalf("cannot broadcast transaction: %v", err)
